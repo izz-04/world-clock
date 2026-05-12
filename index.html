@@ -1,73 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>World Clock Dashboard</title>
-    <!-- Bootstrap 5 CSS -->
+    <title>Modern World Clock</title>
+    <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f8f9fa;
-            --card-bg: #ffffff;
-            --text-main: #212529;
-        }
-        body {
-            background-color: var(--bg-color);
-            font-family: 'Inter', sans-serif;
-            color: var(--text-main);
-            transition: all 0.3s ease;
-        }
-        .clock-card {
-            background: var(--card-bg);
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-            transition: transform 0.2s ease;
-        }
-        .clock-card:hover {
-            transform: translateY(-5px);
-        }
-        .time-display {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 2.5rem;
-            font-weight: 500;
-            letter-spacing: -1px;
-        }
-        .city-name { font-weight: 600; font-size: 1.2rem; }
-        .date-display { color: #6c757d; font-size: 0.9rem; }
-        .btn-remove { 
-            position: absolute; top: 10px; right: 10px; 
-            opacity: 0; transition: opacity 0.2s;
-        }
+        body { font-family: 'Inter', sans-serif; transition: background 0.3s ease; }
+        .clock-card { border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.08); transition: all 0.3s ease; }
+        [data-bs-theme="dark"] .clock-card { box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+        
+        .time-12h { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 600; line-height: 1; }
+        .ampm { font-size: 1rem; color: #6c757d; margin-left: 5px; text-transform: uppercase; }
+        .time-24h { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; opacity: 0.7; }
+        
+        .btn-remove { position: absolute; top: 15px; right: 15px; opacity: 0; }
         .clock-card:hover .btn-remove { opacity: 1; }
-        .search-container { max-width: 600px; margin: 0 auto 3rem auto; }
+        .search-container { max-width: 500px; margin: 0 auto 2rem; }
     </style>
 </head>
-<body>
+<body class="bg-body-tertiary">
 
 <div class="container py-5">
-    <!-- Header -->
-    <div class="text-center mb-5">
-        <h1 class="display-5 fw-bold">World Clock</h1>
-        <p class="text-muted">Stay in sync with the world.</p>
+    <!-- Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <h2 class="fw-bold m-0">World Clock</h2>
+        <button class="btn btn-outline-secondary rounded-pill" id="themeToggle">🌓 Toggle Dark Mode</button>
     </div>
 
-    <!-- Search/Add Section -->
+    <!-- Search -->
     <div class="search-container">
-        <div class="input-group mb-3 shadow-sm rounded-pill overflow-hidden">
-            <input type="text" id="citySearch" class="form-control border-0 py-3 ps-4" placeholder="Search a city (e.g. London, Tokyo...)" list="timezoneOptions">
-            <button class="btn btn-primary px-4" type="button" id="addBtn">Add Clock</button>
+        <div class="input-group shadow-sm rounded-pill overflow-hidden">
+            <input type="text" id="citySearch" class="form-control border-0 p-3" placeholder="Add timezone (e.g. Asia/Karachi)" list="tzList">
+            <button class="btn btn-primary px-4" id="addBtn">Add</button>
         </div>
-        <datalist id="timezoneOptions"></datalist>
+        <datalist id="tzList"></datalist>
     </div>
 
-    <!-- Clocks Grid -->
-    <div class="row g-4" id="clockGrid">
-        <!-- Clocks will be injected here -->
-    </div>
+    <!-- Grid -->
+    <div class="row g-4" id="clockGrid"></div>
 </div>
 
 <!-- Luxon Library -->
@@ -76,54 +49,47 @@
 <script>
     const DateTime = luxon.DateTime;
 
-    // --- CONFIGURATION ---
-    // Change these to set your initial default view
+    // --- 1. WHERE TO EDIT DEFAULTS ---
     const DEFAULT_ZONES = [
         { name: "Local Time", zone: "system" },
-        { name: "London", zone: "Europe/London" },
-        { name: "New York", zone: "America/New_York" },
-        { name: "Tokyo", zone: "Asia/Tokyo" }
+        { name: "Pakistan", zone: "Asia/Karachi" },
+        { name: "India", zone: "Asia/Kolkata" },
+        { name: "Canada (Toronto)", zone: "America/Toronto" },
+        { name: "UTC / Zulu", zone: "UTC" }
     ];
 
-    // Common IANA timezones for the search suggestions
-    const COMMON_ZONES = [
-        "America/New_York", "America/Los_Angeles", "America/Chicago", "Europe/London", 
-        "Europe/Paris", "Europe/Berlin", "Asia/Tokyo", "Asia/Hong_Kong", "Asia/Singapore", 
-        "Australia/Sydney", "Pacific/Auckland", "Asia/Kolkata", "Asia/Dubai"
-    ];
+    let userZones = JSON.parse(localStorage.getItem('worldClock_v2')) || DEFAULT_ZONES;
 
-    let userZones = JSON.parse(localStorage.getItem('worldClock_zones')) || DEFAULT_ZONES;
-
+    // Initialize
     function init() {
-        // Populate search suggestions
-        const datalist = document.getElementById('timezoneOptions');
-        COMMON_ZONES.forEach(tz => {
-            const opt = document.createElement('option');
-            opt.value = tz;
-            datalist.appendChild(opt);
-        });
-
         renderClocks();
         setInterval(updateTimes, 1000);
+        setupTheme();
     }
 
     function renderClocks() {
         const grid = document.getElementById('clockGrid');
         grid.innerHTML = '';
-        
         userZones.forEach((item, index) => {
-            const col = document.createElement('div');
-            col.className = 'col-12 col-md-6 col-lg-4';
-            col.innerHTML = `
-                <div class="card clock-card p-4 position-relative" data-zone="${item.zone}">
-                    <button class="btn btn-sm btn-outline-danger btn-remove border-0" onclick="removeClock(${index})">✕</button>
-                    <div class="city-name">${item.name}</div>
-                    <div class="date-display mb-2" id="date-${index}">--</div>
-                    <div class="time-display" id="time-${index}">00:00:00</div>
-                    <div class="text-muted small">${item.zone === 'system' ? 'Local' : item.zone}</div>
+            grid.innerHTML += `
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card clock-card p-4 h-100 bg-body">
+                        <button class="btn btn-sm btn-link text-danger btn-remove" onclick="removeClock(${index})">✕</button>
+                        <div class="small text-uppercase fw-bold text-primary mb-1">${item.name}</div>
+                        <div class="text-muted small mb-3" id="date-${index}">--</div>
+                        
+                        <div class="d-flex align-items-baseline">
+                            <div class="time-12h" id="time12-${index}">00:00:00</div>
+                            <div class="ampm" id="ampm-${index}">AM</div>
+                        </div>
+                        
+                        <div class="mt-2 border-top pt-2">
+                            <span class="text-muted small">24H:</span>
+                            <span class="time-24h" id="time24-${index}">00:00:00</span>
+                        </div>
+                    </div>
                 </div>
             `;
-            grid.appendChild(col);
         });
         updateTimes();
     }
@@ -131,35 +97,55 @@
     function updateTimes() {
         userZones.forEach((item, index) => {
             const now = DateTime.now().setZone(item.zone);
-            const timeEl = document.getElementById(`time-${index}`);
-            const dateEl = document.getElementById(`date-${index}`);
             
-            if (timeEl) timeEl.innerText = now.toFormat('HH:mm:ss');
-            if (dateEl) dateEl.innerText = now.toFormat('cccc, LLL dd');
+            // 12 Hour Format
+            document.getElementById(`time12-${index}`).innerText = now.toFormat('hh:mm:ss');
+            document.getElementById(`ampm-${index}`).innerText = now.toFormat('a');
+            
+            // 24 Hour Format
+            document.getElementById(`time24-${index}`).innerText = now.toFormat('HH:mm:ss');
+            
+            // Date Format
+            document.getElementById(`date-${index}`).innerText = now.toFormat('DDDD');
         });
     }
 
+    // --- HELPER FUNCTIONS ---
+
     function removeClock(index) {
         userZones.splice(index, 1);
-        saveAndRefresh();
+        save();
     }
 
     document.getElementById('addBtn').addEventListener('click', () => {
-        const input = document.getElementById('citySearch');
-        const val = input.value.trim();
-        if (!val) return;
-
-        // Try to determine a name from the timezone string (e.g., "Asia/Tokyo" -> "Tokyo")
+        const val = document.getElementById('citySearch').value.trim();
+        if(!val) return;
         const name = val.includes('/') ? val.split('/').pop().replace('_', ' ') : val;
-        
         userZones.push({ name: name, zone: val });
-        input.value = '';
-        saveAndRefresh();
+        document.getElementById('citySearch').value = '';
+        save();
     });
 
-    function saveAndRefresh() {
-        localStorage.setItem('worldClock_zones', JSON.stringify(userZones));
+    function save() {
+        localStorage.setItem('worldClock_v2', JSON.stringify(userZones));
         renderClocks();
+    }
+
+    // Dark Mode Logic
+    function setupTheme() {
+        const btn = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        // Load saved preference
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-bs-theme', savedTheme);
+
+        btn.addEventListener('click', () => {
+            const current = html.getAttribute('data-bs-theme');
+            const target = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-bs-theme', target);
+            localStorage.setItem('theme', target);
+        });
     }
 
     init();
